@@ -257,9 +257,9 @@ class TPSO:
     def explore_search(self):
         for particle in self.population:
             for i in range(1, self.pointNum + 1):
-                # newx, newy = self.generatePosition_X(particle.position[i - 1][0],
-                #                                      particle.position[i + 1][0]), self.generatePosition_Y()
-                newx, newy = self.generatePosition_Y()
+                newx, newy = self.generatePosition_X(particle.position[i - 1][0],
+                                                     particle.position[i + 1][0]), self.generatePosition_Y()
+                # newx, newy = self.generatePosition_Y()
                 tmpData_A = copy.deepcopy(particle.position[i - 1])
                 tmpData_B = copy.deepcopy(particle.position[i + 1])
                 self.generateTree([particle.position[i], [newx, newy], tmpData_A, tmpData_B])
@@ -338,8 +338,8 @@ class TPSO:
                     top = bottom
                     bottom = min(node[2][1], node[3][1])
             left, right = min(node[0][0], node[1][0]), max(node[0][0], node[1][0])
-        # return random.uniform(bottom, top)
-        return random.uniform(left, right), random.uniform(bottom, top)
+        return random.uniform(bottom, top)
+        # return random.uniform(left, right), random.uniform(bottom, top)
 
 
 if __name__ == '__main__':
