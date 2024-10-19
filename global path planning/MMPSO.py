@@ -1,22 +1,18 @@
 import copy
-import os
 import statistics
-import sys
 import random
 import math
 
 from config.Plotting import Plotting
 from config.Tree import TreeNode, Tree
 from config.Utils import Utils
-from mapData.map_one import Env_One
-from mapData.map_two import Env_Two
 
 from config.Particle import Particle, Point
-
+from mapData.map_two import Env_Two
 
 
 class TPSO:
-    def __init__(self, pointNum, popSize, maxIter, env):
+    def __init__(self, pointNum, popSize, maxIter, env, a, b):
         self.startPoint = env.start  # 起点
         self.goalPoint = env.goal  # 终点
         self.maxIter = maxIter  # 迭代次数
@@ -34,12 +30,12 @@ class TPSO:
         self.utils = Utils(env)
         self.plotting = Plotting(self.startPoint, self.goalPoint, env)
         self.env = env
-        self.population = []  # 种群
+        self.population = []  # 障碍物
 
         self.tabu_tree = ''  # 探索树
 
         self.a = 0.1  # 探索阶段阈值
-        self.b = 0.9  # 加速阶段阈值
+        self.b = 0.5  # 加速阶段阈值
 
         self.line = 0.4  # 禁忌树父子区域之间选择几率
 
@@ -69,11 +65,6 @@ class TPSO:
 
         # 迭代计算
         for i in range(self.maxIter):
-            for particle in self.population:
-                self.optimize_Particle(particle)
-            print(f'第{i + 1}次迭代,最佳适应度{self.bestParticle.bestFitness}')
-
-            pList.append(self.bestParticle.bestFitness)
 
             if len(pList) > 5:
                 pList.pop(0)
@@ -87,7 +78,14 @@ class TPSO:
                     self.accelerate_search()
                     pList = [self.bestParticle.bestFitness]
                     print(f'加速阶段,最佳适应度{self.bestParticle.bestFitness}')
-
+                else:
+                    for particle in self.population:
+                        self.optimize_Particle(particle)
+            else:
+                for particle in self.population:
+                    self.optimize_Particle(particle)
+            print(f'第{i + 1}次迭代,最佳适应度{self.bestParticle.bestFitness}')
+            pList.append(self.bestParticle.bestFitness)
         return self.bestParticle
 
     # 初始化种群信息
@@ -225,9 +223,9 @@ class TPSO:
             return 0
         cost = 1000
         # 计算最近障碍物距离
-        for circle in env.obs_circle:
+        for circle in self.env.obs_circle:
             cost = min(cost, self.point_to_line_distance(circle, A, B, C))
-        for rectangle in env.obs_rectangle:
+        for rectangle in self.env.obs_rectangle:
             x, y = (rectangle[0] + rectangle[2]) / 2, (rectangle[1] + rectangle[3]) / 2
             cost = min(cost, self.point_to_line_distance([x, y], A, B, C))
         if cost != 1000:
@@ -257,9 +255,8 @@ class TPSO:
     def explore_search(self):
         for particle in self.population:
             for i in range(1, self.pointNum + 1):
-                newx, newy = self.generatePosition_X(particle.position[i - 1][0],
-                                                     particle.position[i + 1][0]), self.generatePosition_Y()
-                # newx, newy = self.generatePosition_Y()
+                newx, newy = self.generatePosition_Y()
+                newx = self.xLine(particle.position[i - 1][0], particle.position[i + 1][0], newx)
                 tmpData_A = copy.deepcopy(particle.position[i - 1])
                 tmpData_B = copy.deepcopy(particle.position[i + 1])
                 self.generateTree([particle.position[i], [newx, newy], tmpData_A, tmpData_B])
@@ -272,6 +269,13 @@ class TPSO:
                 self.updateParticleFitness(particle)
         # 重置探索树
         self.tabu_tree = ''
+
+    def xLine(self, left, right, x):
+        if x < left:
+            return left
+        if x > right:
+            return right
+        return x
 
     def generatePosition(self, position):
         left, right, bottom, top = position[0], position[1], position[2], position[3]
@@ -296,6 +300,15 @@ class TPSO:
         ans = random.uniform(left, right)
         return ans
 
+    # 随机获取高度
+    def randomHigh(self, high):
+        sumHigh = (1 + high) * high // 2
+        odds = random.randint(1, sumHigh)
+        for i in range(1, high):
+            if odds <= i:
+                return high - i + 1
+        return 1
+
     # 根据禁忌树生成Y轴解
     def generatePosition_Y(self):
         tree = self.tabu_tree
@@ -312,7 +325,8 @@ class TPSO:
                     right = max(right, position[0])
         else:
             # 获取层数
-            level = random.randint(1, tree.high)
+
+            level = self.randomHigh(tree.high)
 
             self.tabu_tree.getNode(tree.root, level, 0)
 
@@ -338,16 +352,17 @@ class TPSO:
                     top = bottom
                     bottom = min(node[2][1], node[3][1])
             left, right = min(node[0][0], node[1][0]), max(node[0][0], node[1][0])
-        return random.uniform(bottom, top)
-        # return random.uniform(left, right), random.uniform(bottom, top)
+        # return random.uniform(bottom, top)
+        return random.uniform(left, right), random.uniform(bottom, top)
 
 
 if __name__ == '__main__':
     env = Env_Two()
-    PSOAlgorithm = TPSO(8, 100, 100, env)
+    PSOAlgorithm = TPSO(8, 100, 100, env, 0.1, 1)
     traj = PSOAlgorithm.mainAlgorithm().bestPos
     print(traj)
     path = []
     for i in range(PSOAlgorithm.pointNum + 2):
         path.append(Point(traj[i]))
-    PSOAlgorithm.plotting.animation([], path, [], [], 'TPSO', animation=True)
+
+    PSOAlgorithm.plotting.animation([], path, '', [], 'TPSO', animation=True)
