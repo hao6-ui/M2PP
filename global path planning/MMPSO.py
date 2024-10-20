@@ -34,8 +34,8 @@ class TPSO:
 
         self.tabu_tree = ''  # 探索树
 
-        self.a = 0.1  # 探索阶段阈值
-        self.b = 0.5  # 加速阶段阈值
+        self.a = 0.01  # 探索阶段阈值
+        self.b = 1  # 加速阶段阈值
 
         self.line = 0.4  # 禁忌树父子区域之间选择几率
 
