@@ -10,7 +10,6 @@ from config.Utils import Utils
 
 from config.Particle import Particle, Point
 from mapData.map_three import Env_Three
-from mapData.map_four import Env_Four
 from config.Boundary import getBoundary
 
 class MMPSO:
