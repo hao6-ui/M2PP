@@ -371,7 +371,7 @@ class MMPSO:
 
 
 if __name__ == '__main__':
-    env = Env_Four()
+    env = Env_Three()
     PSOAlgorithm = MMPSO(6, 100, 100, env, 0.1, 1, 0.2)
     traj = PSOAlgorithm.mainAlgorithm().bestPos
     print(traj)
