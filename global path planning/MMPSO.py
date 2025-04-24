@@ -3,25 +3,24 @@ import statistics
 import random
 import math
 
+from config.Grid import Grid_Map
 from config.Plotting import Plotting
 from config.Tree import TreeNode, Tree
 from config.Utils import Utils
 
 from config.Particle import Particle, Point
-from mapData.map_two import Env_Two
+from mapData.map_three import Env_Three
+from mapData.map_four import Env_Four
+from config.Boundary import getBoundary
 
-
-class TPSO:
-    def __init__(self, pointNum, popSize, maxIter, env, a, b):
+class MMPSO:
+    def __init__(self, pointNum, popSize, maxIter, env, a, b, line):
         self.startPoint = env.start  # 起点
         self.goalPoint = env.goal  # 终点
         self.maxIter = maxIter  # 迭代次数
         self.popSize = popSize  # 种群大小
         self.pointNum = pointNum  # 控制点数量
         self.bestParticle = Particle()  # 全局最佳粒子
-
-        self.obsCost = 2 * math.sqrt(
-            pow((env.start[0] - env.goal[0]), 2) + pow((env.start[1] - env.goal[1]), 2))  # 障碍物代价
 
         self.w_inertial = 0.5
         self.w_social = 1
@@ -34,58 +33,58 @@ class TPSO:
 
         self.tabu_tree = ''  # 探索树
 
-        self.a = 0.01  # 探索阶段阈值
-        self.b = 1  # 加速阶段阈值
+        self.a = a  # 探索阶段阈值
+        self.b = b  # 加速阶段阈值
 
-        self.line = 0.4  # 禁忌树父子区域之间选择几率
+        self.line = line  # 禁忌树父子区域之间选择几率
 
-        self.bottom = min(self.startPoint[1], self.goalPoint[1])  # 地图上阈值
-        self.top = max(self.startPoint[1], self.goalPoint[1])  # 地图下阈值
-
-        for circle in env.obs_circle:
-            self.bottom = min(self.bottom, circle[1] - circle[2])
-            self.top = max(self.top, circle[1] + circle[2])
-
-        for rectangle in env.obs_rectangle:
-            self.bottom = min(self.bottom, rectangle[1] - rectangle[3])
-            self.top = max(self.top, rectangle[1] + rectangle[3])
-        self.top += 1
-        self.bottom -= 1
+        self.top, self.bottom = getBoundary(env)
 
         self.slope = (self.goalPoint[1] - self.startPoint[1]) / (self.goalPoint[0] - self.startPoint[0])  # 起终点斜率
-        # 粒子群算法主流程
 
+        self.grid = Grid_Map(env, left=self.startPoint[0], right=self.goalPoint[0], bottom=self.bottom, top=self.top)
+
+        self.result = []
+
+    # 粒子群算法主流程
     def mainAlgorithm(self):
-
+        # return
         # 初始化种群
         self.population = self.init_Particle()
 
         # 近五代最佳适应度
         pList = []
 
+        # 标准代数上限
+        limit = 5
+
         # 迭代计算
         for i in range(self.maxIter):
-
-            if len(pList) > 5:
+            if len(pList) > limit:
                 pList.pop(0)
 
-            if len(pList) == 5:
-                if statistics.stdev(pList) < self.a:
+            if len(pList) == limit:
+                devValue = statistics.stdev(pList)
+                if devValue < self.a:
                     self.explore_search()
                     pList = [self.bestParticle.bestFitness]
                     print(f'探索阶段,最佳适应度{self.bestParticle.bestFitness}')
-                elif statistics.stdev(pList) > self.b:
+                elif devValue > self.b:
                     self.accelerate_search()
                     pList = [self.bestParticle.bestFitness]
                     print(f'加速阶段,最佳适应度{self.bestParticle.bestFitness}')
                 else:
                     for particle in self.population:
                         self.optimize_Particle(particle)
+                    pList.append(self.bestParticle.bestFitness)
             else:
                 for particle in self.population:
                     self.optimize_Particle(particle)
+                pList.append(self.bestParticle.bestFitness)
             print(f'第{i + 1}次迭代,最佳适应度{self.bestParticle.bestFitness}')
-            pList.append(self.bestParticle.bestFitness)
+
+            self.result.append(self.bestParticle.bestFitness)
+
         return self.bestParticle
 
     # 初始化种群信息
@@ -144,11 +143,16 @@ class TPSO:
         # 碰撞物代价
         backPositionPoint = Point(backPosition)
         prePositionPoint = Point(prePosition)
-        obstacleCost = self.utils.is_collision(backPositionPoint, prePositionPoint)
+        # obstacleCost = self.utils.is_collision(backPositionPoint, prePositionPoint)
+        obstacleCost = self.utils.is_collision_new(backPositionPoint, prePositionPoint, self.grid)
         if obstacleCost:
-            distanceCost += 20
-            # distanceCost += self.obsCost
+            distanceCost += self.env.cost
         return distanceCost
+
+    def getPoint(self, backPositionPoint, prePositionPoint):
+        backPositionPoint = Point(backPositionPoint)
+        prePositionPoint = Point(prePositionPoint)
+        return self.utils.is_collision_new(backPositionPoint, prePositionPoint, self.grid)
 
     # 更新粒子位置
     def updateParticleVelocity(self, particle):
@@ -179,7 +183,7 @@ class TPSO:
     def accelerate_search(self):
         for particle in self.population:
             self.updateParticlePosition(particle)
-            if self.accelerate_cost(particle) < self.accelerate_cost(particle):
+            if self.accelerate_cost(particle.position) < self.accelerate_cost(particle.bestPos):
                 particle.bestPos = copy.deepcopy(particle.position)
                 particle.bestFitness = self.accelerate_fitness(particle)
 
@@ -191,11 +195,11 @@ class TPSO:
         return cost
 
     # 加速阶段新代价函数
-    def accelerate_cost(self, particle):
+    def accelerate_cost(self, position):
         cost = 0
         obstacle_cost = 1000
         for i in range(self.pointNum + 1):
-            backPosition, prePosition = particle.position[i], particle.position[i + 1]
+            backPosition, prePosition = position[i], position[i + 1]
             pointCost = self.pointCost(backPosition, prePosition) + self.slope_cost(backPosition, prePosition)
             cost += pointCost
             obstacle_cost = min(obstacle_cost, self.obstacle_recent_cost(backPosition, prePosition))
@@ -216,8 +220,8 @@ class TPSO:
         if backPosition[0] == prePosition[0]:
             return 0
         # 碰撞不考虑
-        if self.pointCost(backPosition, prePosition) == 20:
-            return 0
+        if self.pointCost(backPosition, prePosition) >= self.env.cost:
+            return self.env.cost
         A, B, C = self.line_from_points(backPosition, prePosition)
         if A == 0 and B == 0 and C == 0:
             return 0
@@ -267,7 +271,9 @@ class TPSO:
                 if nowCost <= preCost:
                     particle.position[i][0], particle.position[i][1] = newx, newy
                 self.updateParticleFitness(particle)
+        # print(self.tabu_tree.high)
         # 重置探索树
+        del self.tabu_tree
         self.tabu_tree = ''
 
     def xLine(self, left, right, x):
@@ -292,7 +298,7 @@ class TPSO:
         nowNode = TreeNode(position)
         if self.tabu_tree == '':
             self.tabu_tree = Tree(nowNode)
-        else:
+        elif self.tabu_tree.high < 10:
             self.tabu_tree.addNode(nowNode, self.tabu_tree.root)
 
     # 根据禁忌树生成X轴解
@@ -336,33 +342,40 @@ class TPSO:
             odds = random.random()
 
             if level == 1:
-                top, bottom = max(node[0][1], node[1][1]), min(node[0][1], node[1][1])
                 if odds <= self.line:
-                    bottom = top
-                    top = self.top
-                elif odds <= self.line * 2:
-                    top = bottom
-                    bottom = self.bottom
+                    top, bottom = max(node[0][1], node[1][1]), min(node[0][1], node[1][1])
+                else:
+                    partOdds = random.random()
+                    top, bottom = max(node[0][1], node[1][1]), min(node[0][1], node[1][1])
+                    if partOdds < 0.5:
+                        bottom = top
+                        top = self.top
+                    else:
+                        top = bottom
+                        bottom = self.bottom
             else:
-                top, bottom = max(node[0][1], node[1][1]), min(node[0][1], node[1][1])
                 if odds <= self.line:
-                    bottom = top
-                    top = max(node[2][1], node[3][1])
-                elif odds <= self.line * 2:
-                    top = bottom
-                    bottom = min(node[2][1], node[3][1])
+                    top, bottom = max(node[0][1], node[1][1]), min(node[0][1], node[1][1])
+                else:
+                    partOdds = random.random()
+                    top, bottom = max(node[0][1], node[1][1]), min(node[0][1], node[1][1])
+                    if partOdds < 0.5:
+                        bottom = top
+                        top = max(node[2][1], node[3][1])
+                    else:
+                        top = bottom
+                        bottom = min(node[2][1], node[3][1])
+
             left, right = min(node[0][0], node[1][0]), max(node[0][0], node[1][0])
-        # return random.uniform(bottom, top)
         return random.uniform(left, right), random.uniform(bottom, top)
 
 
 if __name__ == '__main__':
-    env = Env_Two()
-    PSOAlgorithm = TPSO(8, 100, 100, env, 0.1, 1)
+    env = Env_Four()
+    PSOAlgorithm = MMPSO(6, 100, 100, env, 0.1, 1, 0.2)
     traj = PSOAlgorithm.mainAlgorithm().bestPos
     print(traj)
     path = []
     for i in range(PSOAlgorithm.pointNum + 2):
         path.append(Point(traj[i]))
-
-    PSOAlgorithm.plotting.animation([], path, '', [], 'TPSO', animation=True)
+    PSOAlgorithm.plotting.animation([], path, '', [], 'MPPSO', animation=True)

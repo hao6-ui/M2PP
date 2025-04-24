@@ -1,10 +1,11 @@
 import copy
 import random
+from math import inf
 
 
 class Tree:
     def __init__(self, node) -> None:
-        self.root =node
+        self.root = node
         self.high = 1
         self.node = []
 
@@ -39,13 +40,31 @@ class Tree:
             return
         else:
             # 被包含的情况
+            # minHeight = inf
+            # minNode = ''
+            nodeList = []
             for node in node1.children:
                 levelResult = self.addNodeByLevel(node, node2)
                 if levelResult == -1:
                     continue
                 elif levelResult == 1:
-                    self.addNode(node, node2)
-                    return
+                    # nodeHeight = self.getMaxDepth(node)
+                    # if nodeHeight < minHeight:
+                    #     minNode = node
+                    #     minHeight = nodeHeight
+
+                    nodeList.append(node)
+                    # self.addNode(node, node2)
+                    # return
+
+            # if minHeight != inf:
+            #     self.addNode(minNode, node2)
+            #     return
+            if len(nodeList) > 0:
+                nodeIndex = random.randint(0, len(nodeList) - 1)
+                self.addNode(nodeList[nodeIndex], node2)
+                return
+
             if node2.left[0] < node2.left[1] and node2.bottom[1] < node2.top[1]:
                 node1.children.append(node2)
                 node2.parent = node1
@@ -75,7 +94,7 @@ class Tree:
     def getNode(self, node, h, g):
         if (node and len(node.children) == 0) or h == g:
             if node.parent is not None:
-                self.node = [node.bottom, node.top,node.parent.bottom,node.parent.top]
+                self.node = [node.bottom, node.top, node.parent.bottom, node.parent.top]
             else:
                 self.node = [node.bottom, node.top]
             return
@@ -105,6 +124,15 @@ class Tree:
 
         # 0为部分重叠
         return 0
+
+    # 获取树节点最大深度
+    # def getMaxDepth(self, node):
+    #     if len(node.children) == 0:
+    #         return 0
+    #     ans = 0
+    #     for child in node.children:
+    #         ans = max(ans, 1 + self.getMaxDepth(child))
+    #     return ans
 
 
 class TreeNode:

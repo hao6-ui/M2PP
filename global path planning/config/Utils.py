@@ -4,7 +4,7 @@ from config.Particle import Point
 
 
 class Utils:
-    def __init__(self,env):
+    def __init__(self, env):
         self.env = env
         self.delta = self.env.delta
         self.obs_circle = self.env.obs_circle
@@ -72,7 +72,6 @@ class Utils:
 
     def is_collision(self, start, end):
         if self.is_inside_obs(start) or self.is_inside_obs(end):
-
             return True
 
         o, d = self.get_ray(start, end)
@@ -90,6 +89,81 @@ class Utils:
 
         for (x, y, r) in self.obs_circle:
             if self.is_intersect_circle(o, d, [x, y], r):
+                return True
+
+        return False
+
+    def is_collision_new(self, start, end, grid):
+
+        if grid.getObstacle(start) == True or grid.getObstacle(end) == True:
+            return True
+
+        x1, y1 = start.x, start.y
+        x2, y2 = end.x, end.y
+
+        # minX = min(x1, x2)
+        # maxX = max(x1, x2)
+        # minY = min(y1, y2)
+        # maxY = max(y1, y2)
+        #
+        # grid_x1, grid_y1 = grid.get_grid_coordinates(minX, minY)
+        # grid_x2, grid_y2 = grid.get_grid_coordinates(maxX, maxY)
+
+        # for x in range(grid_x1, grid_x2 + 1):
+        #     for y in range(grid_y1, grid_y2 + 1):
+        #         if grid.is_obstacle(x, y) == True:
+        #             return True
+        x1, y1 = grid.get_grid_coordinates(x1, y1)
+        x2, y2 = grid.get_grid_coordinates(x2, y2)
+
+        # print(x1, y1)
+
+        dx = x2 - x1
+        dy = y2 - y1
+        x, y = x1, y1
+        points = []  # 存储经过的格子
+        if abs(dx) >= abs(dy):  # 水平步长优先
+            sx = 1 if dx > 0 else -1
+            sy = dy / abs(dx) if dx != 0 else 0
+            for i in range(abs(dx) + 1):
+                if grid.is_obstacle(int(x), int(y)) == True:
+                    return True
+                points.append((int(x), int(y)))  # 添加坐标
+                x += sx
+                y += sy
+        else:  # 垂直步长优先
+            sy = 1 if dy > 0 else -1
+            sx = dx / abs(dy) if dy != 0 else 0
+            for i in range(abs(dy) + 1):
+                if grid.is_obstacle(int(x), int(y)) == True:
+                    return True
+                points.append((int(x), int(y)))  # 添加坐标
+                x += sx
+                y += sy
+        # print(points)
+        # return points
+        return False
+
+        x0, x1 = grid_x1, grid_x2
+        y0, y1 = grid_y1, grid_y2
+
+        dx = abs(x1 - x0)
+        dy = abs(y1 - y0)
+        sx = 1 if x0 < x1 else -1
+        sy = 1 if y0 < y1 else -1
+        err = dx - dy
+
+        while True:
+            if x0 == x1 and y0 == y1:
+                break
+            e2 = 2 * err
+            if e2 > -dy:
+                err -= dy
+                x0 += sx
+            if e2 < dx:
+                err += dx
+                y0 += sy
+            if grid.is_obstacle(x0, y0) == True:
                 return True
 
         return False
@@ -119,7 +193,6 @@ class Utils:
         direc = [end.x - start.x, end.y - start.y]
         return orig, direc
 
-
     # 计算两点之间直线距离
     @staticmethod
     def get_dist(start, end):
@@ -128,7 +201,7 @@ class Utils:
     def Kinematic_check(self, nearestPoint, newRealPoint, goalPoint):
         angleOne = math.degrees(math.atan2(newRealPoint.y - nearestPoint.y, newRealPoint.x - nearestPoint.x))
         angleTwo = math.degrees(math.atan2(goalPoint.y - nearestPoint.y, goalPoint.x - nearestPoint.x))
-        #print(abs(angleTwo - angleOne))
+        # print(abs(angleTwo - angleOne))
         if abs(angleTwo - angleOne) > 90:
             return True
         return False
